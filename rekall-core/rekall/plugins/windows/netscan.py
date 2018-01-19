@@ -213,8 +213,9 @@ class WinNetscan(tcpip_vtypes.TcpipPluginMixin,
                 owner = net_object.Owner.dereference_as(
                     vm=self.kernel_address_space, profile=self.session.profile)
 
-                yield (net_object.obj_offset, proto, lendpoint,
-                       rendpoint, state,
-                       owner.UniqueProcessId,
-                       owner.ImageFileName,
-                       net_object.CreateTime)
+                if str(laddr)!=str(raddr):
+                    yield (net_object.obj_offset, proto, lendpoint,
+                        rendpoint, state,
+                        owner.UniqueProcessId,
+                        owner.ImageFileName,
+                        net_object.CreateTime)

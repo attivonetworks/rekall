@@ -23,11 +23,13 @@
 # pylint: disable=protected-access
 
 __author__ = "Michael Cohen <scudette@gmail.com>"
+import os
 import logging
 import re
 import time
 
-import readline
+
+if str(os.name)!='nt':import readline
 
 from pygments.token import Token
 from pygments import styles
@@ -276,7 +278,7 @@ def Shell(user_session):
 
     # Set known delimeters for the completer. This varies by OS so we need to
     # set it to ensure consistency.
-    readline.set_completer_delims(' \t\n`!@#$^&*()=+[{]}\\|;:\'",<>?')
+    if str(os.name)!='nt':readline.set_completer_delims(' \t\n`!@#$^&*()=+[{]}\\|;:\'",<>?')
 
     for magic in REGISTERED_MAGICS:
         shell.register_magics(magic)

@@ -51,7 +51,8 @@ def find_data_files(source):
 # when external packages are upgraded in an incompatible way.
 install_requires = [
     "artifacts == 20160114",
-    "pyaff4 >= 0.24, < 0.30",
+    "aff4-snappy == 0.5",
+    "pyaff4 == 0.24.post3",
     "PyYAML == 3.11",
     "acora == 2.0",
     "arrow == 0.7.0",

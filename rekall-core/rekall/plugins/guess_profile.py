@@ -41,6 +41,18 @@ from rekall.plugins.linux import common as linux_common
 from rekall.plugins.windows import common as win_common
 from rekall.plugins.overlays.windows import pe_vtypes
 
+profile_data={"profile_info":
+[
+    {
+      "bad_guid":"00625D7D36754CBEBA4533BA9A0F3FE22",
+      "bad_pdb":"ntkrnlmp.pdb",
+      "good_guid":"684DA42A30CC450F81C535B4D18944B12",
+      "good_pdb":"ntkrpamp.pdb",
+      "version":"6.1",
+      "arch":"x86"
+    }
+  ]
+}
 
 class DetectionMethod(object):
     """A baseclass to implement autodetection methods."""
@@ -380,12 +392,21 @@ class WindowsRSDSDetector(DetectionMethod):
     def _test_rsds(self, rsds):
         if (rsds.Signature.is_valid() and
                 str(rsds.Filename) in self.KERNEL_NAMES):
-            profile = self.VerifyProfile("nt/GUID/%s" % rsds.GUID_AGE)
+            #profile patcing mechanism goes here
+            guid=rsds.GUID_AGE
+            pdb_name=rsds.Filename
+            prof_info=profile_data['profile_info']
+            for record in prof_info:
+                if str(rsds.Filename)==str(record['bad_pdb']) and str(rsds.GUID_AGE)==str(record['bad_guid']):
+                    guid=record['good_guid']
+                    pdb_name=record['good_pdb']
+            #patch ends
+            profile = self.VerifyProfile("nt/GUID/%s" % guid)
 
             if profile:
                 self.session.logging.info(
-                    "Detected %s with GUID %s", rsds.Filename,
-                    rsds.GUID_AGE)
+                    "Detected %s with GUID %s", pdb_name,
+                    guid)
 
                 return profile
 

@@ -205,11 +205,11 @@ class SymLinkScan(common.PoolScannerPlugin):
     table_header = [
         dict(name=' ', cname='allocated', width=1),
         dict(name='Offset', cname="offset_p", style="address"),
-        dict(name='#Ptr', cname="ptr_count", width=6, align="r"),
-        dict(name='#Hnd', cname="hnd_count", width=3, align="r"),
+        dict(name='#Ptr', cname="ptr_count", width=6, align="l"),
+        dict(name='#Hnd', cname="hnd_count", width=3, align="l"),
         dict(name='Creation time', cname="symlink_creation_time", width=24),
         dict(name='From', cname="symlink_from"),
-        dict(name='To', cname="symlink_to", width=60),
+        dict(name='To', cname="symlink_to"),
     ]
 
     scanner_defaults = dict(

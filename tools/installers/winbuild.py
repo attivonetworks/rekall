@@ -15,11 +15,12 @@ def build_windows_installer():
 
     # Inno setup is particular about a version format.
     version = ".".join(constants.VERSION.split(".")[:3])
-
+    file_version = ".".join(constants.VERSION.split(".")[:2])
     template = """
 #define REKALL_VERSION '%s'
 #define REKALL_CODENAME '%s'
-""" % (version, constants.CODENAME)
+#define REKALL_INSTALLER_VERSION '%s'
+""" % (version, constants.CODENAME ,file_version)
 
     template += r"""
 [Files]
@@ -60,16 +61,41 @@ UninstallDisplayIcon={app}\rekall.exe
         template += """
 ArchitecturesAllowed=x64
 ArchitecturesInstallIn64BitMode=x64
-OutputBaseFilename=Rekall_{#REKALL_VERSION}_{#REKALL_CODENAME}_x64
+OutputBaseFilename=Rekall_{#REKALL_INSTALLER_VERSION}_{#REKALL_CODENAME}_x64
 """
     else:
         template += """
-OutputBaseFilename=Rekall_{#REKALL_VERSION}_{#REKALL_CODENAME}_x86
+OutputBaseFilename=Rekall_{#REKALL_INSTALLER_VERSION}_{#REKALL_CODENAME}_x86
 """
 
     template += r'''
 [_ISTool]
 UseAbsolutePaths=true
+
+[Code]
+function InitializeSetup():Boolean;
+var
+  ResultCode: Integer;
+begin
+  // Launch Kill winpmem driver which is running
+  Log('Initialize Setup Called')
+  Exec('sc', 'stop pmem', '', SW_HIDE,ewWaitUntilTerminated, ResultCode);
+  Log('Result Code 1' + IntToStr(ResultCode) + '.');
+  Exec('echo', 'driverkilldone', '', SW_HIDE,ewWaitUntilTerminated, ResultCode);
+  Log('Result Code 1' + IntToStr(ResultCode) + '.');
+  Result:=True
+end;
+
+procedure DeinitializeSetup();
+var
+  ResultCode: Integer;
+begin
+  Log('UnInitialize Setup Called')
+  Exec('sc', 'stop pmem', '', SW_HIDE,ewWaitUntilTerminated, ResultCode);
+  Log('Result Code 1' + IntToStr(ResultCode) + '.');
+  Exec('echo', 'driverkilldone', '', SW_HIDE,ewWaitUntilTerminated, ResultCode);
+  Log('Result Code 1' + IntToStr(ResultCode) + '.');
+end;
 
 [Icons]
 Name: {group}\{cm:UninstallProgram, Rekall}; Filename: {uninstallexe}
@@ -81,7 +107,10 @@ Root: HKCR; Subkey: ".rkl"; ValueType: string; ValueName: ""; ValueData: "Rekall
 Root: HKCR; Subkey: "RekallForensicFile"; ValueType: string; ValueName: ""; ValueData: "Rekall Forensic File"; Flags: uninsdeletekey
 Root: HKCR; Subkey: "RekallForensicFile\DefaultIcon"; ValueType: string; ValueName: ""; ValueData: "{app}\Rekal.exe"
 Root: HKCR; Subkey: "RekallForensicFile\shell\open\command"; ValueType: string; ValueName: ""; ValueData: """{app}\Rekal.exe"" -v webconsole --browser ""%1"""
+Root: HKCR; Subkey: "RekallForensicFile\Info"; ValueType: string; ValueName: "Version"; ValueData: "{#REKALL_VERSION}"
+Root: HKCR; Subkey: "RekallForensicFile\Info"; ValueType: string; ValueName: "Codename";ValueData: "{#REKALL_CODENAME}"
 '''
+
     with tempfile.NamedTemporaryFile(delete=False) as fd:
         fd.write(template)
         fd.close()
@@ -144,10 +173,15 @@ def main():
 
     print "Copy resources into the package."
     # Recent versions of Pyinstaller already copy resources they know about.
-    copy("rekall-core/resources", "dist/rekal")
-    copy("rekall-gui/manuskript", "dist/rekal")
-    copy("rekall-gui/rekall_gui/plugins/webconsole",
-         "dist/rekal/rekall_gui/plugins")
+    try:
+        copy("rekall-core/resources", "dist/rekal")
+    except:
+        rm("dist/rekal/resources")
+        copy("rekall-core/resources", "dist/rekal")
+    #We dont need to ship the GUI package
+    #copy("rekall-gui/manuskript", "dist/rekal")
+    #copy("rekall-gui/rekall_gui/plugins/webconsole",
+    #     "dist/rekal/rekall_gui/plugins")
 
     print "Remove unnecessary crap added by pyinstaller."
     rm("dist/rekal/_MEI")

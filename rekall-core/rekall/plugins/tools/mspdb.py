@@ -92,6 +92,7 @@ import platform
 import subprocess
 import sys
 import urllib2
+#import urllib.request, urllib.error, urllib.parse
 
 from rekall import addrspace
 from rekall import plugin
@@ -112,7 +113,7 @@ class FetchPDB(core.DirectoryDumperMixin, plugin.TypedProfileCommand,
     __name = "fetch_pdb"
 
     SYM_URLS = ['http://msdl.microsoft.com/download/symbols']
-    USER_AGENT = "Microsoft-Symbol-Server/6.6.0007.5"
+    USER_AGENT = "Microsoft-Symbol-Server/10.0.0.0"
 
     __args = [
         dict(name="pdb_filename", required=True, positional=True,
@@ -136,7 +137,7 @@ class FetchPDB(core.DirectoryDumperMixin, plugin.TypedProfileCommand,
             debug = data_directory.AddressOfRawData.dereference_as(
                 "CV_RSDS_HEADER")
 
-            if debug.Signature != "RSDS":
+            if debug.Signature != b"RSDS":
                 self.session.logging.error("PDB stream %s not supported.",
                                            debug.Signature)
                 return
@@ -155,6 +156,74 @@ class FetchPDB(core.DirectoryDumperMixin, plugin.TypedProfileCommand,
                            mode="wb") as fd:
             fd.write(pdb_file_data)
 
+    def DownloadCompressedPDBFile(self, url, pdb_filename, guid, basename):
+        url += "/%s/%s/%s.pd_" % (pdb_filename, guid, basename)
+
+        self.session.report_progress("Trying to fetch %s\n", url)
+        request = urllib2.Request(url, None, headers={
+            'User-Agent': self.USER_AGENT})
+
+        url_handler = urllib2.urlopen(request)
+        with utils.TempDirectory() as temp_dir:
+            compressed_output_file = os.path.join(
+                temp_dir, "%s.pd_" % basename)
+
+            output_file = os.path.join(
+                temp_dir, "%s.pdb" % basename)
+
+            # Download the compressed file to a temp file.
+            with open(compressed_output_file, "wb") as outfd:
+                while True:
+                    data = url_handler.read(8192)
+                    if not data:
+                        break
+
+                    outfd.write(data)
+                    self.session.report_progress(
+                        "%s: Downloaded %s bytes", basename, outfd.tell())
+
+            # Now try to decompress it with system tools. This might fail.
+            try:
+                if platform.system() == "Windows":
+                    # This should already be installed on windows systems.
+                    subprocess.check_call(
+                        ["expand", compressed_output_file, output_file],
+                        cwd=temp_dir)
+                else:
+                    # In Linux we just hope the cabextract program was
+                    # installed.
+                    subprocess.check_call(
+                        ["cabextract", compressed_output_file],
+                        cwd=temp_dir,
+                        stdout=sys.stderr)
+
+            except (subprocess.CalledProcessError, OSError):
+                raise RuntimeError(
+                    "Failed to decompress output file %s. "
+                    "Ensure cabextract is installed.\n" % output_file)
+
+            # Sometimes the CAB file contains a PDB file with a different
+            # name or casing than we expect. We use glob to find any PDB
+            # files in the temp directory.
+            output_file = glob.glob("%s/*pdb" % temp_dir)[0]
+
+            # We read the entire file into memory here - it should not be
+            # larger than approximately 10mb.
+            with open(output_file, "rb") as fd:
+                return fd.read(50 * 1024 * 1024)
+
+    def DownloadUncompressedPDBFile(self, url, pdb_filename, guid, basename):
+        url += "/%s/%s/%s.pdb" % (pdb_filename, guid, basename)
+
+        self.session.report_progress("Trying to fetch %s\n", url)
+        request = urllib2.Request(url, None, headers={
+            'User-Agent': self.USER_AGENT})
+
+        url_handler = urllib2.urlopen(request)
+        # We read the entire file into memory here - it should not be
+        # larger than approximately 10mb.
+        return url_handler.read(50 * 1024 * 1024)
+
     def FetchPDBFile(self):
         # Ensure the pdb filename has the correct extension.
         pdb_filename = self.plugin_args.pdb_filename
@@ -165,60 +234,12 @@ class FetchPDB(core.DirectoryDumperMixin, plugin.TypedProfileCommand,
 
         for url in self.SYM_URLS:
             basename = ntpath.splitext(pdb_filename)[0]
-            url += "/%s/%s/%s.pd_" % (pdb_filename, guid, basename)
-
-            self.session.report_progress("Trying to fetch %s\n", url)
-            request = urllib2.Request(url, None, headers={
-                'User-Agent': self.USER_AGENT})
-
-            url_handler = urllib2.urlopen(request)
-            with utils.TempDirectory() as temp_dir:
-                compressed_output_file = os.path.join(
-                    temp_dir, "%s.pd_" % basename)
-
-                output_file = os.path.join(
-                    temp_dir, "%s.pdb" % basename)
-
-                # Download the compressed file to a temp file.
-                with open(compressed_output_file, "wb") as outfd:
-                    while True:
-                        data = url_handler.read(8192)
-                        if not data:
-                            break
-
-                        outfd.write(data)
-                        self.session.report_progress(
-                            "%s: Downloaded %s bytes", basename, outfd.tell())
-
-                # Now try to decompress it with system tools. This might fail.
-                try:
-                    if platform.system() == "Windows":
-                        # This should already be installed on windows systems.
-                        subprocess.check_call(
-                            ["expand", compressed_output_file, output_file],
-                            cwd=temp_dir)
-                    else:
-                        # In Linux we just hope the cabextract program was
-                        # installed.
-                        subprocess.check_call(
-                            ["cabextract", compressed_output_file],
-                            cwd=temp_dir,
-                            stdout=sys.stderr)
-
-                except (subprocess.CalledProcessError, OSError):
-                    raise RuntimeError(
-                        "Failed to decompress output file %s. "
-                        "Ensure cabextract is installed.\n" % output_file)
-
-                # Sometimes the CAB file contains a PDB file with a different
-                # name or casing than we expect. We use glob to find any PDB
-                # files in the temp directory.
-                output_file = glob.glob("%s/*pdb" % temp_dir)[0]
-
-                # We read the entire file into memory here - it should not be
-                # larger than approximately 10mb.
-                with open(output_file, "rb") as fd:
-                    return fd.read(50 * 1024 * 1024)
+            try:
+                return self.DownloadUncompressedPDBFile(
+                    url, pdb_filename, guid, basename)
+            except Exception:
+                return self.DownloadCompressedPDBFile(
+                    url, pdb_filename, guid, basename)
 
 
 class TestFetchPDB(testlib.DisabledTest):
@@ -280,6 +301,7 @@ LEAF_ENUM_TO_TYPE = dict(
     LF_USHORT="unsigned short int",
     LF_LONG="long",
     LF_ULONG="unsigned long",
+    LF_64PWCHAR="Pointer",
 )
 
 # The SubRecord field is a union which depends on the _LEAF_ENUM_e. The
@@ -835,6 +857,7 @@ class PDBParser(object):
         "T_64PQUAD": ["Pointer", dict(target="long long")],
         "T_64PRCHAR": ["Pointer", dict(target="unsigned char")],
         "T_64PUCHAR": ["Pointer", dict(target="unsigned char")],
+        "T_64PWCHAR": ["Pointer", dict(target="String")],
         "T_64PULONG": ["Pointer", dict(target="unsigned long")],
         "T_64PUQUAD": ["Pointer", dict(target="unsigned long long")],
         "T_64PUSHORT": ["Pointer", dict(target="unsigned short")],
@@ -1086,6 +1109,8 @@ class PDBParser(object):
             type_name = self._TYPE_ENUM_e.get(idx)
 
             result = self.TYPE_ENUM_TO_VTYPE.get(type_name)
+            if result is None and type_name != "T_NOTYPE":
+                self.session.logging.error("Unrecognized type %s\n", type_name)
 
         else:
             try:

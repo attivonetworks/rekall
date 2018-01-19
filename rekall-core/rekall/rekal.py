@@ -94,6 +94,15 @@ def main(argv=None):
         argv=argv, global_arg_cb=global_arg_cb,
         user_session=user_session)
 
+    #sys.exit(99)
+    profile_status = rekall.plugins.windows.attivo.testprofile.ProfileTester(session=user_session).collect123()
+    if profile_status == -1:
+        command_metadata = user_session.plugins.Metadata('profiletester')
+        #print "No profile Found"
+        user_session.RunPlugin(command_metadata.plugin_cls,**config.RemoveGlobalOptions(flags))
+        sys.exit(17000)
+    
+
     try:
         # Run the plugin with plugin specific args.
         user_session.RunPlugin(plugin_cls, **config.RemoveGlobalOptions(flags))

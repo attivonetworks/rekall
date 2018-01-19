@@ -28,15 +28,18 @@ static MDL *rogue_mdl = NULL;
 // allocate from pool because pool storage is controlled by large page
 // PTEs. So we just use a static page in the driver executable.
 static void *pte_get_rogue_page(void) {
-  if (page_aligned_space == NULL) {
-    rogue_mdl = IoAllocateMdl(&rogue_page, sizeof(rogue_page),
-			     FALSE, FALSE, NULL);
+  if (page_aligned_space == NULL) { 
+    page_aligned_space = &rogue_page[0];
+    page_aligned_space += PAGE_SIZE - ((__int64)&rogue_page[0]) % PAGE_SIZE;
+    rogue_mdl = IoAllocateMdl(page_aligned_space,PAGE_SIZE,FALSE,FALSE,NULL);
     if (!rogue_mdl) {
       return NULL;
     };
 
     try {
       MmProbeAndLockPages(rogue_mdl, KernelMode, IoWriteAccess);
+      page_aligned_space = MmGetSystemAddressForMdlSafe(rogue_mdl,HighPagePriority | MdlMappingNoExecute);
+      return page_aligned_space;
     } except(EXCEPTION_EXECUTE_HANDLER) {
       NTSTATUS ntStatus = GetExceptionCode();
 
@@ -46,9 +49,10 @@ static void *pte_get_rogue_page(void) {
       rogue_mdl = NULL;
       return NULL;
     }
-    page_aligned_space = rogue_page;
-    page_aligned_space += PAGE_SIZE - ((__int64)rogue_page) % PAGE_SIZE;
-  };
+  }
+    //page_aligned_space = rogue_page;
+    //page_aligned_space += PAGE_SIZE - ((__int64)rogue_page) % PAGE_SIZE;
+  //};
 
   return page_aligned_space;
 }
@@ -108,7 +112,7 @@ PTE_MMAP_OBJ *pte_mmap_windows_new(void) {
   PTE_MMAP_OBJ *self = NULL;
 
   // Allocate the object
-  self = ExAllocatePoolWithTag(NonPagedPool, sizeof(PTE_MMAP_OBJ),
+  self = ExAllocatePoolWithTag(NonPagedPoolNx, sizeof(PTE_MMAP_OBJ),
 			       PMEM_POOL_TAG);
 
   if (!self) return NULL;

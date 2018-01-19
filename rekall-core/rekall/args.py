@@ -46,6 +46,8 @@ config.DeclareOption(
     "-h", "--help", default=False, type="Boolean",
     help="Show help about global paramters.")
 
+config.DeclareOption("--epdatapath",default=[],type="ArrayStringParser",help="Provide the directory containing Attivo Data")
+
 
 class RekallHelpFormatter(argparse.RawDescriptionHelpFormatter):
     def add_argument(self, action):

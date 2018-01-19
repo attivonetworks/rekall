@@ -12,8 +12,8 @@ def get_versions():
 def raw_versions():
     return json.loads("""
 {
-    "codename": "Furka", 
-    "version": "1.5.3", 
+    "codename": "Akura", 
+    "version": "10.0.0", 
     "post": "0", 
     "rc": "0"
 }

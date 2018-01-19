@@ -72,8 +72,10 @@ class AFF4ProgressReporter(aff4.ProgressContext):
         readptr = readptr + self.start
 
         # Rate in MB/s.
-        rate = ((readptr - self.last_offset) /
-                (self.now() - self.last_time) * 1000000 / 1024/1024)
+        try:
+            rate = ((readptr - self.last_offset) /(self.now() - self.last_time) * 1000000 / 1024/1024)
+        except ZeroDivisionError:
+            rate="?"
 
         self.session.report_progress(
             " Reading %sMiB / %sMiB  %s MiB/s     ",

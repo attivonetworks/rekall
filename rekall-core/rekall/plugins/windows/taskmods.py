@@ -45,7 +45,8 @@ class WinPsList(common.WinProcessFilter):
         dict(name="Sess", cname="session_id", width=6, align="r"),
         dict(name="Wow64", cname="wow64", width=6),
         dict(name="Start", cname="process_create_time", width=24),
-        dict(name="Exit", cname="process_exit_time", width=24)
+        dict(name="Exit", cname="process_exit_time", width=24),
+        dict(name="Path",cname="Process_path")
     ]
 
     def column_types(self):
@@ -63,7 +64,8 @@ class WinPsList(common.WinProcessFilter):
                     session_id=task.SessionId,
                     wow64=task.IsWow64,
                     process_create_time=task.CreateTime,
-                    process_exit_time=task.ExitTime)
+                    process_exit_time=task.ExitTime,
+        			Process_path=task.Peb.ProcessParameters.ImagePathName)
 
     def collect(self):
         for task in self.filter_processes():

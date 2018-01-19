@@ -19,7 +19,8 @@ from rekall.plugins.windows import kdbgscan
 from rekall.plugins.windows import kpcr
 
 from rekall.plugins.windows import malware
-from rekall.plugins.windows import mimikatz
+#from rekall.plugins.windows import mimikatz
+from rekall.plugins.windows import attivo
 from rekall.plugins.windows import misc
 from rekall.plugins.windows import modscan
 from rekall.plugins.windows import modules
